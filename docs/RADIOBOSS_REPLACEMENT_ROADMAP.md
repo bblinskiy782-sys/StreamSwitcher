@@ -378,11 +378,17 @@ class AirRecorder:
 ### Фаза 1 — UX + Core фичи
 
 - [ ] Crossfade UI (слайдер длительности в DSP-вкладке).
-- [ ] AutoDJ-вкладка (правила, история, ban-list).
-- [ ] Air Recorder UI (вкладка "Запись").
-- [ ] Расписание: day-of-week, interval events.
-- [ ] Hotkeys (Ctrl+1..5, Space=Play/Stop, M=Mute, →=Next).
-- [ ] CLI mode (`python main.py --headless --config ...`).
+- [x] `core/autodj.py` + AutoDJ rules (next-track picker, jingle insertion, repeat-avoid).
+- [x] `core/recorder.py` — Air Recorder с WAV-split (`split_minutes`).
+- [x] `core/history.py` подключён к UI: `_on_track_changed` пишет в `HistoryLog`.
+- [x] `core.playlist` M3U/PLS импорт/экспорт через UI (`📂 Импорт`, `💾 Экспорт`).
+- [x] ID3-теги в плейлисте: отображается `Artist — Title` вместо `basename`.
+- [x] `AppConfig` подключён к `MainWindow`: load on start, save on close, `Ctrl+S` save now.
+- [x] Расписание: day-of-week + interval events (`weekdays`, `interval_seconds`).
+- [x] Hotkeys: Space=Play/Stop, M=Mute, Ctrl+1/2/3=источники, Ctrl+N / →=Next, Ctrl+S=Save.
+- [x] CLI mode (`python main.py --headless --config ... --port ... --api-key ...`).
+- [ ] AutoDJ UI-вкладка (rules editor + history viewer).
+- [ ] Air Recorder UI-вкладка (Start/Stop + список файлов).
 - [ ] Перенос декодинга радио на `miniaudio` или `pydub` для нормальной поддержки
       MP3-потока.
 - [ ] AGC / Normalize в DSP.

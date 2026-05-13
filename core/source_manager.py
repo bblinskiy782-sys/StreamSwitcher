@@ -81,6 +81,16 @@ class SourceManager(QObject):
         names = [os.path.basename(p) for p in self._playlist]
         self.playlist_updated.emit(names)
 
+    def remove_from_playlist(self, index: int):
+        """Remove the track at ``index``. No-op when out of range."""
+        if not (0 <= index < len(self._playlist)):
+            return
+        self._playlist.pop(index)
+        if self._current_index >= len(self._playlist):
+            self._current_index = max(0, len(self._playlist) - 1)
+        names = [os.path.basename(p) for p in self._playlist]
+        self.playlist_updated.emit(names)
+
     def clear_playlist(self):
         self._playlist.clear()
         self._current_index = 0

@@ -82,6 +82,8 @@ class ScheduleEntryDict:
     target: str = ""
     repeat_daily: bool = True
     enabled: bool = True
+    weekdays: list[int] = field(default_factory=list)
+    interval_seconds: int = 0
 
 
 @dataclass
@@ -91,6 +93,8 @@ class AutoDJConfig:
     repeat: str = "all"   # "off" | "one" | "all"
     avoid_repeat_minutes: int = 30
     crossfade_seconds: float = 0.0
+    insert_jingle_every: int = 0
+    jingle_paths: list[str] = field(default_factory=list)
 
 
 @dataclass
