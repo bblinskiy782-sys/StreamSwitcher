@@ -2,9 +2,11 @@
 Main Window - StreamSwitcher Pro
 Dark Mode Professional Broadcasting Station UI
 """
+import os
 import time
 
 from PySide6.QtCore import Qt, QTimer
+from PySide6.QtGui import QKeySequence, QShortcut
 from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
@@ -26,6 +28,11 @@ from PySide6.QtWidgets import (
 )
 
 from core.audio_engine import AudioEngine, AudioSource, MixMode
+from core.autodj import AutoDJ, AutoDJRules
+from core.config import AppConfig
+from core.history import HistoryEntry, HistoryLog
+from core.playlist import Track, enrich_track, parse_m3u, parse_pls, write_m3u, write_pls
+from core.recorder import AirRecorder
 from core.remote_api import RemoteAPI
 from core.scheduler import Scheduler
 from core.source_manager import SourceManager
@@ -46,6 +53,10 @@ class MainWindow(QMainWindow):
         self.resize(1280, 800)
         self.setStyleSheet(DARK_STYLESHEET)
 
+        # --- Configuration (load before constructing components) ---
+        self._config_path: str | None = None
+        self.config: AppConfig = AppConfig.load()
+
         # --- Core objects ---
         self.engine = AudioEngine(self)
         self.source_mgr = SourceManager(
@@ -56,7 +67,22 @@ class MainWindow(QMainWindow):
         )
         self.scheduler = Scheduler(self)
         self.streamer = IcecastStreamer(self)
-        self.remote_api = RemoteAPI(port=8080)
+        self.remote_api = RemoteAPI(
+            port=self.config.remote_api_port,
+            api_key=self.config.remote_api_key,
+        )
+        self.history = HistoryLog()
+        self.recorder = AirRecorder(self)
+        self.autodj = AutoDJ(
+            rules=AutoDJRules(
+                enabled=self.config.autodj.enabled,
+                shuffle=self.config.autodj.shuffle,
+                avoid_repeat_minutes=self.config.autodj.avoid_repeat_minutes,
+                insert_jingle_every=self.config.autodj.insert_jingle_every,
+                jingle_paths=list(self.config.autodj.jingle_paths),
+            ),
+            history=self.history,
+        )
 
         self._start_time = time.time()
         self._muted = False
@@ -65,12 +91,14 @@ class MainWindow(QMainWindow):
 
         # Wire engine -> source manager
         self.engine._external_audio_callback = self.source_mgr.get_audio_frame
-        self.engine._stream_output_callback = self.streamer.push_audio
+        self.engine._stream_output_callback = self._on_engine_output
 
         self._build_ui()
         self._connect_signals()
+        self._install_hotkeys()
         self._populate_devices()
         self._setup_remote_api()
+        self._apply_loaded_config()
 
         # Uptime timer
         self._uptime_timer = QTimer(self)
@@ -418,6 +446,14 @@ class MainWindow(QMainWindow):
         add_smb_btn.clicked.connect(self._add_smb)
         toolbar.addWidget(add_smb_btn)
 
+        import_btn = QPushButton("📂 Импорт M3U/PLS")
+        import_btn.clicked.connect(self._import_playlist)
+        toolbar.addWidget(import_btn)
+
+        export_btn = QPushButton("💾 Экспорт M3U/PLS")
+        export_btn.clicked.connect(self._export_playlist)
+        toolbar.addWidget(export_btn)
+
         clear_btn = QPushButton("🗑 Очистить")
         clear_btn.clicked.connect(self._clear_playlist)
         toolbar.addWidget(clear_btn)
@@ -744,14 +780,35 @@ class MainWindow(QMainWindow):
 
     def _on_playlist_updated(self, names: list):
         self.playlist_widget.clear()
+        paths = list(self.source_mgr._playlist)
         for i, name in enumerate(names):
-            item = QListWidgetItem(f"  {i+1}. {name}")
+            display_name = name
+            if i < len(paths):
+                try:
+                    t = enrich_track(Track(path=paths[i]))
+                    if t.artist and t.title:
+                        display_name = f"{t.artist} \u2014 {t.title}"
+                    elif t.title:
+                        display_name = t.title
+                except Exception:
+                    pass
+            item = QListWidgetItem(f"  {i+1}. {display_name}")
             self.playlist_widget.addItem(item)
 
     def _on_track_changed(self, name: str):
         self._current_track = name
         self.track_label.setText(name)
         self.mini_track_label.setText(f"🎵 {name}")
+        try:
+            self.history.append(
+                HistoryEntry.now(
+                    source=self.engine.current_source.value
+                    if self.engine.current_source else "unknown",
+                    track=name,
+                )
+            )
+        except Exception:
+            pass
 
     def _on_position_updated(self, pos: float):
         if self.source_mgr.duration > 0:
@@ -919,7 +976,37 @@ class MainWindow(QMainWindow):
         self.remote_api.on_mute = lambda: self._on_mute(not self._muted)
         self.remote_api.on_source_switch = self._remote_switch_source
         self.remote_api.get_status = self._get_remote_status
+        self.remote_api.on_volume = self._remote_set_volume
+        self.remote_api.get_playlist = lambda: list(self.source_mgr._playlist)
+        self.remote_api.set_playlist = self.source_mgr.set_playlist
+        self.remote_api.on_playlist_add = self.source_mgr.add_to_playlist
+        self.remote_api.on_playlist_remove = self.source_mgr.remove_from_playlist
+        self.remote_api.get_history = lambda limit: [
+            {
+                "timestamp": e.timestamp,
+                "source": e.source,
+                "track": e.track,
+                "duration": e.duration,
+            }
+            for e in self.history.recent(limit)
+        ]
         self.remote_api.start()
+
+    def _remote_set_volume(self, value: float) -> None:
+        try:
+            self.engine.master_volume = float(value)
+        except Exception:
+            pass
+
+    def _on_engine_output(self, audio):
+        try:
+            self.streamer.push_audio(audio)
+        except Exception:
+            pass
+        try:
+            self.recorder.push_audio(audio)
+        except Exception:
+            pass
 
     def _remote_switch_source(self, source_str: str):
         mapping = {
@@ -961,10 +1048,112 @@ class MainWindow(QMainWindow):
         self.statusBar().showMessage(f"⚠ {msg}", 8000)
 
     def closeEvent(self, event):
-        """Clean shutdown."""
+        """Clean shutdown: persist config, then stop subsystems."""
+        try:
+            self._persist_config()
+        except Exception:
+            pass
+        try:
+            self.recorder.stop()
+        except Exception:
+            pass
         self.engine.stop()
         self.source_mgr.stop()
         self.scheduler.stop()
         self.streamer.stop()
         self.remote_api.stop()
         event.accept()
+
+    # ------------------------------------------------------------------ #
+    #  PERSISTENCE / HOTKEYS                                              #
+    # ------------------------------------------------------------------ #
+
+    def _install_hotkeys(self) -> None:
+        """Bind keyboard shortcuts."""
+        bindings = [
+            ("Space", self._toggle_play),
+            ("M", lambda: self._on_mute(not self._muted)),
+            ("Ctrl+N", self._on_next),
+            ("Right", self._on_next),
+            ("Ctrl+1", lambda: self._switch_source(AudioSource.LIVE_INPUT)),
+            ("Ctrl+2", lambda: self._switch_source(AudioSource.MP3_FILE)),
+            ("Ctrl+3", lambda: self._switch_source(AudioSource.INTERNET_RADIO)),
+            ("Ctrl+S", lambda: self._persist_config(show_status=True)),
+        ]
+        for keyseq, handler in bindings:
+            sc = QShortcut(QKeySequence(keyseq), self)
+            sc.activated.connect(handler)
+
+    def _toggle_play(self) -> None:
+        if self.engine._running:
+            self._on_stop()
+        else:
+            self._on_play()
+
+    def _apply_loaded_config(self) -> None:
+        """Apply persisted state to the live components."""
+        if self.config.playlist:
+            self.source_mgr.set_playlist(list(self.config.playlist))
+        if self.config.radio_url:
+            self.source_mgr.set_radio_url(self.config.radio_url)
+            self.radio_url_edit.setText(self.config.radio_url)
+        try:
+            self.engine.master_volume = float(self.config.master_volume)
+        except Exception:
+            pass
+
+    def _persist_config(self, show_status: bool = False) -> None:
+        """Snapshot live state and write to disk."""
+        self.config.playlist = list(self.source_mgr._playlist)
+        self.config.radio_url = self.source_mgr._radio_url or ""
+        try:
+            self.config.master_volume = float(self.engine.master_volume)
+        except Exception:
+            pass
+        self.config.save(self._config_path)
+        if show_status:
+            self._show_status(
+                f"Config saved to {self._config_path or AppConfig.default_config_path()}"
+            )
+
+    # ------------------------------------------------------------------ #
+    #  PLAYLIST IMPORT / EXPORT                                           #
+    # ------------------------------------------------------------------ #
+
+    def _import_playlist(self) -> None:
+        path, _ = QFileDialog.getOpenFileName(
+            self, "Import playlist", "", "Playlists (*.m3u *.m3u8 *.pls)"
+        )
+        if not path:
+            return
+        try:
+            ext = os.path.splitext(path)[1].lower()
+            tracks = parse_pls(path) if ext == ".pls" else parse_m3u(path)
+        except Exception as exc:
+            self._show_error(f"Failed to import playlist: {exc}")
+            return
+        for track in tracks:
+            self.source_mgr.add_to_playlist(track.path)
+        self._show_status(
+            f"Imported {len(tracks)} tracks from {os.path.basename(path)}"
+        )
+
+    def _export_playlist(self) -> None:
+        path, selected = QFileDialog.getSaveFileName(
+            self, "Export playlist", "playlist.m3u",
+            "M3U Playlist (*.m3u);;PLS Playlist (*.pls)"
+        )
+        if not path:
+            return
+        try:
+            tracks = [enrich_track(Track(path=p)) for p in self.source_mgr._playlist]
+            if path.lower().endswith(".pls") or "PLS" in selected:
+                write_pls(path, tracks)
+            else:
+                write_m3u(path, tracks)
+        except Exception as exc:
+            self._show_error(f"Failed to export playlist: {exc}")
+            return
+        self._show_status(
+            f"Exported {len(self.source_mgr._playlist)} tracks to {path}"
+        )
