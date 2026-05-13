@@ -2,16 +2,21 @@
 Source Manager - handles MP3 file playback and internet radio streaming.
 Provides audio frames to the AudioEngine via callback.
 """
-import threading
-import queue
-import time
 import io
 import os
+import queue
+import threading
+import time
+
 import numpy as np
 import requests
-import soundfile as sf
-from typing import Optional, List
-from PySide6.QtCore import QObject, Signal
+
+from core._qt_compat import QObject, Signal
+
+try:
+    import soundfile as sf  # type: ignore
+except ImportError:  # pragma: no cover - audio runtime optional in tests
+    sf = None  # type: ignore[assignment]
 
 
 class SourceManager(QObject):
@@ -38,14 +43,14 @@ class SourceManager(QObject):
         self.blocksize = blocksize
 
         # Playlist
-        self._playlist: List[str] = []
+        self._playlist: list[str] = []
         self._current_index = 0
         self._radio_url = ""
 
         # Playback state
         self._playing = False
         self._paused = False
-        self._audio_data: Optional[np.ndarray] = None
+        self._audio_data: np.ndarray | None = None
         self._position = 0  # frame position
         self._duration = 0.0
 
@@ -53,8 +58,8 @@ class SourceManager(QObject):
         self._audio_queue: queue.Queue = queue.Queue(maxsize=50)
 
         # Threads
-        self._decode_thread: Optional[threading.Thread] = None
-        self._radio_thread: Optional[threading.Thread] = None
+        self._decode_thread: threading.Thread | None = None
+        self._radio_thread: threading.Thread | None = None
         self._stop_event = threading.Event()
 
         # Radio buffer
@@ -65,7 +70,7 @@ class SourceManager(QObject):
     #  Playlist management                                                 #
     # ------------------------------------------------------------------ #
 
-    def set_playlist(self, paths: List[str]):
+    def set_playlist(self, paths: list[str]):
         self._playlist = paths
         self._current_index = 0
         names = [os.path.basename(p) for p in paths]
@@ -88,7 +93,7 @@ class SourceManager(QObject):
     #  Playback control                                                    #
     # ------------------------------------------------------------------ #
 
-    def play_file(self, path: Optional[str] = None):
+    def play_file(self, path: str | None = None):
         """Start playing a file (or current playlist item)."""
         self._stop_internal()
         self._stop_event.clear()
@@ -112,7 +117,7 @@ class SourceManager(QObject):
         self._decode_thread.start()
         self.track_changed.emit(os.path.basename(target))
 
-    def play_radio(self, url: Optional[str] = None):
+    def play_radio(self, url: str | None = None):
         """Start streaming internet radio."""
         self._stop_internal()
         self._stop_event.clear()
@@ -176,7 +181,7 @@ class SourceManager(QObject):
     #  Audio frame provider (called by AudioEngine)                       #
     # ------------------------------------------------------------------ #
 
-    def get_audio_frame(self, frames: int) -> Optional[np.ndarray]:
+    def get_audio_frame(self, frames: int) -> np.ndarray | None:
         """Called by AudioEngine output callback to get next audio block."""
         if not self._playing or self._paused:
             return None
@@ -186,7 +191,7 @@ class SourceManager(QObject):
         else:
             return self._get_radio_frame(frames)
 
-    def _get_file_frame(self, frames: int) -> Optional[np.ndarray]:
+    def _get_file_frame(self, frames: int) -> np.ndarray | None:
         if self._audio_data is None:
             return None
         end = self._position + frames
@@ -209,7 +214,7 @@ class SourceManager(QObject):
 
         return chunk.astype(np.float32)
 
-    def _get_radio_frame(self, frames: int) -> Optional[np.ndarray]:
+    def _get_radio_frame(self, frames: int) -> np.ndarray | None:
         needed = frames * self.channels
         if len(self._radio_pcm_buffer) < needed:
             # Try to fill from radio buffer
@@ -284,7 +289,7 @@ class SourceManager(QObject):
             else:
                 data, sr = sf.read(path, dtype="float32", always_2d=True)
                 return data, sr
-        except Exception as e:
+        except Exception:
             # Try pydub as fallback for MP3
             try:
                 from pydub import AudioSegment

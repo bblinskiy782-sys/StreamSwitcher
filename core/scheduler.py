@@ -3,10 +3,11 @@ Scheduler - time-based source switching and file insertion.
 """
 import threading
 import time
-from datetime import datetime, timedelta
-from typing import Optional, Callable, List
+from collections.abc import Callable
 from dataclasses import dataclass, field
-from PySide6.QtCore import QObject, Signal
+from datetime import datetime, timedelta
+
+from core._qt_compat import QObject, Signal
 
 
 @dataclass
@@ -17,7 +18,7 @@ class ScheduleEntry:
     target: str = ""       # file path or radio URL
     repeat_daily: bool = True
     enabled: bool = True
-    _next_trigger: Optional[datetime] = field(default=None, repr=False)
+    _next_trigger: datetime | None = field(default=None, repr=False)
 
     def compute_next(self):
         now = datetime.now()
@@ -28,7 +29,7 @@ class ScheduleEntry:
         self._next_trigger = candidate
 
     @property
-    def next_trigger(self) -> Optional[datetime]:
+    def next_trigger(self) -> datetime | None:
         return self._next_trigger
 
 
@@ -42,11 +43,11 @@ class Scheduler(QObject):
 
     def __init__(self, parent=None):
         super().__init__(parent)
-        self._entries: List[ScheduleEntry] = []
+        self._entries: list[ScheduleEntry] = []
         self._next_id = 1
         self._running = False
-        self._thread: Optional[threading.Thread] = None
-        self._callbacks: List[Callable] = []
+        self._thread: threading.Thread | None = None
+        self._callbacks: list[Callable] = []
 
     def add_entry(self, time_str: str, action: str,
                   target: str = "", repeat_daily: bool = True) -> ScheduleEntry:
@@ -91,7 +92,7 @@ class Scheduler(QObject):
                 e.enabled = not e.enabled
         self.schedule_updated.emit(self._entries.copy())
 
-    def get_entries(self) -> List[ScheduleEntry]:
+    def get_entries(self) -> list[ScheduleEntry]:
         return self._entries.copy()
 
     def start(self):

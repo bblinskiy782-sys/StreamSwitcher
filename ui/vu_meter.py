@@ -2,9 +2,10 @@
 VU Meter widget - stereo level indicator with clip detection.
 """
 import math
+
+from PySide6.QtCore import Qt, QTimer
+from PySide6.QtGui import QColor, QLinearGradient, QPainter, QPen
 from PySide6.QtWidgets import QWidget
-from PySide6.QtCore import Qt, QTimer, QRectF
-from PySide6.QtGui import QPainter, QLinearGradient, QColor, QPen, QBrush
 
 
 class VUMeter(QWidget):

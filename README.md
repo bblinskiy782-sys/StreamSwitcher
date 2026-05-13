@@ -1,16 +1,29 @@
 # StreamSwitcher Pro — Аудио-движок и вещательная станция
 
+Open-source альтернатива RadioBoss. Подробный план развития:
+[`docs/RADIOBOSS_REPLACEMENT_ROADMAP.md`](docs/RADIOBOSS_REPLACEMENT_ROADMAP.md).
+
 ## Установка
 
 ```bash
 cd StreamSwitcher
-pip install -r requirements.txt
+# Полная установка (GUI + audio + streaming):
+pip install -e ".[ui,audio,streaming]"
+# Только тесты и линтеры:
+pip install -e ".[dev]"
 ```
 
 ## Запуск
 
 ```bash
 python main.py
+```
+
+## Тесты и линтер
+
+```bash
+ruff check .
+pytest
 ```
 
 ---
@@ -125,26 +138,53 @@ python main.py
 
 ```
 StreamSwitcher/
-├── main.py              # Точка входа
-├── requirements.txt     # Зависимости
+├── main.py
+├── pyproject.toml
 ├── core/
-│   ├── audio_engine.py  # Ядро: захват, микс, DSP, вывод
-│   ├── source_manager.py # MP3/Radio декодирование
-│   ├── scheduler.py     # Планировщик событий
-│   ├── streamer.py      # Icecast вещание
-│   └── remote_api.py    # Flask REST API + веб-пульт
-└── ui/
-    ├── main_window.py   # Главное окно
-    ├── styles.py        # Dark Mode стили
-    ├── vu_meter.py      # VU-метры
-    ├── waveform_widget.py # Визуализация волны
-    ├── dsp_panel.py     # EQ + Компрессор
-    ├── scheduler_panel.py # UI расписания
-    └── stream_panel.py  # UI стриминга
+│   ├── audio_engine.py
+│   ├── source_manager.py
+│   ├── scheduler.py
+│   ├── streamer.py
+│   ├── remote_api.py
+│   ├── config.py            # JSON-персистентность настроек
+│   ├── dsp.py               # Чистые функции EQ/comp/fade/crossfade
+│   ├── playlist.py          # M3U/PLS + ID3 (mutagen)
+│   ├── crossfade.py
+│   └── history.py           # Лог отыгранных треков + CSV
+├── ui/
+│   ├── main_window.py
+│   ├── styles.py
+│   ├── vu_meter.py
+│   ├── waveform_widget.py
+│   ├── dsp_panel.py
+│   ├── scheduler_panel.py
+│   └── stream_panel.py
+├── docs/
+│   └── RADIOBOSS_REPLACEMENT_ROADMAP.md
+└── tests/                   # 105 юнит-тестов (pytest)
 ```
 
 ## Требования
 
 - Python 3.10+
 - Windows (WASAPI) / macOS / Linux (ALSA/PulseAudio)
-- PySide6, sounddevice, soundfile, numpy, flask, scipy, requests
+- PySide6, sounddevice, soundfile, numpy, flask, scipy, requests, mutagen
+
+## Remote API
+
+REST на порту 8080 (см. `core/remote_api.py`):
+
+| Endpoint | Method | Описание |
+|----------|--------|----------|
+| `/api/status` | GET | Текущий статус |
+| `/api/control` | POST | `{"action": "play\|stop\|next\|mute"}` |
+| `/api/source` | POST | `{"source": "live_input\|mp3_file\|internet_radio"}` |
+| `/api/volume` | POST | `{"master": 0.0..1.0}` |
+| `/api/playlist` | GET / POST | Получить / заменить плейлист |
+| `/api/playlist/add` | POST | `{"path": "..."}` |
+| `/api/playlist/remove` | POST | `{"index": N}` |
+| `/api/eq` | GET / POST | Состояние эквалайзера |
+| `/api/history` | GET | `?limit=N` — последние N треков |
+
+При непустом `remote_api_key` в конфигурации все `/api/*` запросы требуют
+заголовок `Authorization: Bearer <key>`.

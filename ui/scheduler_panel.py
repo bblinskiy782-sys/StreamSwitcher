@@ -1,14 +1,28 @@
 """
 Scheduler Panel - UI for managing timed events.
 """
-from PySide6.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QGroupBox,
-    QLabel, QPushButton, QTableWidget, QTableWidgetItem,
-    QTimeEdit, QComboBox, QLineEdit, QCheckBox, QHeaderView,
-    QFileDialog, QMessageBox, QDialog, QDialogButtonBox, QFormLayout
-)
-from PySide6.QtCore import Qt, QTime, Signal
+from PySide6.QtCore import QTime, Signal
 from PySide6.QtGui import QColor
+from PySide6.QtWidgets import (
+    QCheckBox,
+    QComboBox,
+    QDialog,
+    QDialogButtonBox,
+    QFileDialog,
+    QFormLayout,
+    QGroupBox,
+    QHBoxLayout,
+    QHeaderView,
+    QLabel,
+    QLineEdit,
+    QMessageBox,
+    QPushButton,
+    QTableWidget,
+    QTableWidgetItem,
+    QTimeEdit,
+    QVBoxLayout,
+    QWidget,
+)
 
 
 class SchedulerPanel(QWidget):
@@ -211,7 +225,6 @@ class SchedulerPanel(QWidget):
             return
         entry = self._entries[row]
 
-        from PySide6.QtWidgets import QDialog, QDialogButtonBox, QFormLayout
         dlg = QDialog(self)
         dlg.setWindowTitle(f"Редактировать событие #{entry.id}")
         dlg.setMinimumWidth(400)
