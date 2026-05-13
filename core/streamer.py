@@ -2,16 +2,15 @@
 Streamer - broadcasts audio to Icecast/Shoutcast servers.
 Uses HTTP PUT (Icecast) or HTTP SOURCE (Shoutcast) protocol.
 """
-import threading
-import queue
-import time
-import io
-import struct
-import numpy as np
-import socket
 import base64
-from typing import Optional
-from PySide6.QtCore import QObject, Signal
+import queue
+import socket
+import threading
+import time
+
+import numpy as np
+
+from core._qt_compat import QObject, Signal
 
 
 class IcecastStreamer(QObject):
@@ -41,10 +40,10 @@ class IcecastStreamer(QObject):
 
         self._running = False
         self._connected = False
-        self._socket: Optional[socket.socket] = None
+        self._socket: socket.socket | None = None
         self._audio_queue: queue.Queue = queue.Queue(maxsize=100)
-        self._thread: Optional[threading.Thread] = None
-        self._stats_thread: Optional[threading.Thread] = None
+        self._thread: threading.Thread | None = None
+        self._stats_thread: threading.Thread | None = None
         self._bytes_sent = 0
 
         # MP3 encoder
@@ -166,7 +165,7 @@ class IcecastStreamer(QObject):
             if self._running:
                 time.sleep(retry_delay)
 
-    def _encode(self, audio: np.ndarray) -> Optional[bytes]:
+    def _encode(self, audio: np.ndarray) -> bytes | None:
         """Encode numpy float32 audio to MP3 bytes or raw PCM."""
         try:
             if self._encoder_available and self._encoder:

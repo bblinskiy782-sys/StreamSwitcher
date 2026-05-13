@@ -1,12 +1,18 @@
 """
 DSP Panel - Equalizer and Compressor controls.
 """
-from PySide6.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QGroupBox,
-    QLabel, QSlider, QCheckBox, QDoubleSpinBox, QSpinBox,
-    QGridLayout
-)
 from PySide6.QtCore import Qt, Signal
+from PySide6.QtWidgets import (
+    QCheckBox,
+    QDoubleSpinBox,
+    QGridLayout,
+    QGroupBox,
+    QHBoxLayout,
+    QLabel,
+    QSlider,
+    QVBoxLayout,
+    QWidget,
+)
 
 
 class EQBandWidget(QWidget):

@@ -2,14 +2,20 @@
 Audio Engine - Core audio processing, capture, passthrough, and mixing.
 Supports WASAPI (Windows) via sounddevice.
 """
+import queue
 import threading
 import time
-import queue
-import numpy as np
-import sounddevice as sd
+from collections.abc import Callable
 from enum import Enum
-from typing import Optional, Callable
-from PySide6.QtCore import QObject, Signal
+
+import numpy as np
+
+from core._qt_compat import QObject, Signal
+
+try:
+    import sounddevice as sd  # type: ignore
+except (ImportError, OSError):  # pragma: no cover - audio runtime optional in tests
+    sd = None  # type: ignore[assignment]
 
 
 class AudioSource(Enum):
@@ -49,8 +55,8 @@ class AudioEngine(QObject):
         self.blocksize = 1024
         self.dtype = np.float32
 
-        self.input_device: Optional[int] = None
-        self.output_device: Optional[int] = None
+        self.input_device: int | None = None
+        self.output_device: int | None = None
 
         self.current_source = AudioSource.LIVE_INPUT
         self._target_source = AudioSource.LIVE_INPUT
@@ -90,8 +96,8 @@ class AudioEngine(QObject):
         self.compressor_makeup = 6.0       # dB
 
         # Streams
-        self._input_stream: Optional[sd.InputStream] = None
-        self._output_stream: Optional[sd.OutputStream] = None
+        self._input_stream: sd.InputStream | None = None
+        self._output_stream: sd.OutputStream | None = None
         self._running = False
 
         # Audio buffers
@@ -99,10 +105,10 @@ class AudioEngine(QObject):
         self._mix_buffer = queue.Queue(maxsize=20)
 
         # External audio source (MP3 / radio) - injected by source manager
-        self._external_audio_callback: Optional[Callable] = None
+        self._external_audio_callback: Callable | None = None
 
         # Silence detection
-        self._silence_start: Optional[float] = None
+        self._silence_start: float | None = None
         self._silence_fired = False
 
         # Level metering
@@ -110,7 +116,7 @@ class AudioEngine(QObject):
         self._level_right = 0.0
 
         # Streaming output callback
-        self._stream_output_callback: Optional[Callable] = None
+        self._stream_output_callback: Callable | None = None
 
     # ------------------------------------------------------------------ #
     #  Device management                                                   #
@@ -120,6 +126,8 @@ class AudioEngine(QObject):
     def get_devices() -> list[dict]:
         """Return list of available audio devices."""
         devices = []
+        if sd is None:
+            return devices
         try:
             for i, dev in enumerate(sd.query_devices()):
                 devices.append({
@@ -130,7 +138,7 @@ class AudioEngine(QObject):
                     "default_samplerate": dev["default_samplerate"],
                     "hostapi": sd.query_hostapis(dev["hostapi"])["name"],
                 })
-        except Exception as e:
+        except Exception:
             pass
         return devices
 
@@ -156,6 +164,11 @@ class AudioEngine(QObject):
 
     def start(self):
         if self._running:
+            return
+        if sd is None:
+            self.error_occurred.emit(
+                "sounddevice is not available — running in headless mode"
+            )
             return
         self._running = True
         try:
@@ -370,7 +383,7 @@ class AudioEngine(QObject):
     def _apply_eq(self, audio: np.ndarray) -> np.ndarray:
         """Simple peak EQ using biquad filters (approximated)."""
         try:
-            from scipy.signal import sosfilt, iirpeak
+            from scipy.signal import iirpeak, sosfilt
             result = audio.copy()
             for freq, gain_db in self.eq_bands.items():
                 if abs(gain_db) < 0.1:

@@ -1,13 +1,18 @@
 """
 Stream Panel - Icecast/Shoutcast streaming configuration and control.
 """
-from PySide6.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QGroupBox,
-    QLabel, QPushButton, QLineEdit, QSpinBox,
-    QFormLayout, QCheckBox
-)
 from PySide6.QtCore import Signal
-from PySide6.QtGui import QColor
+from PySide6.QtWidgets import (
+    QFormLayout,
+    QGroupBox,
+    QHBoxLayout,
+    QLabel,
+    QLineEdit,
+    QPushButton,
+    QSpinBox,
+    QVBoxLayout,
+    QWidget,
+)
 
 
 class StreamPanel(QWidget):

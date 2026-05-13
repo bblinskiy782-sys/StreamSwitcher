@@ -1,0 +1,84 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "streamswitcher"
+version = "1.0.0"
+description = "Professional audio broadcasting station — open-source alternative to RadioBoss."
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+authors = [{ name = "StreamSwitcher Contributors" }]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Topic :: Multimedia :: Sound/Audio",
+]
+dependencies = [
+    "numpy>=1.24.0",
+    "requests>=2.31.0",
+    "mutagen>=1.47.0",
+    "flask>=3.0.0",
+    "scipy>=1.11.0",
+]
+
+[project.optional-dependencies]
+audio = [
+    "sounddevice>=0.4.6",
+    "soundfile>=0.12.1",
+    "pydub>=0.25.1",
+]
+ui = [
+    "PySide6>=6.6.0",
+]
+streaming = [
+    "lameenc>=1.6.0",
+]
+dev = [
+    "pytest>=7.0",
+    "pytest-cov>=4.0",
+    "ruff>=0.4.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/bblinskiy782-sys/StreamSwitcher"
+
+[tool.setuptools]
+packages = ["core", "ui"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.ruff.lint]
+select = [
+    "E",   # pycodestyle errors
+    "F",   # pyflakes
+    "W",   # pycodestyle warnings
+    "I",   # isort
+    "B",   # bugbear
+    "UP",  # pyupgrade
+]
+ignore = [
+    "E501",   # line too long (long messages, HTML templates)
+    "E741",   # ambiguous variable names (l, r for left/right ok in audio code)
+    "B008",   # function call in argument defaults (Qt signals, dataclass)
+    "B904",   # raise from in except
+]
+
+[tool.ruff.lint.per-file-ignores]
+"ui/*" = ["E402"]
+"core/remote_api.py" = ["E501"]
+
+[tool.pytest.ini_options]
+minversion = "7.0"
+testpaths = ["tests"]
+addopts = "-ra -q --strict-markers"
+filterwarnings = [
+    "ignore::DeprecationWarning",
+]

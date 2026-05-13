@@ -3,9 +3,9 @@ Waveform Widget - mini-player waveform visualization.
 Shows the waveform of the loaded MP3 file with playback position.
 """
 import numpy as np
+from PySide6.QtCore import Qt, Signal
+from PySide6.QtGui import QColor, QPainter, QPen
 from PySide6.QtWidgets import QWidget
-from PySide6.QtCore import Qt, Signal, QPointF
-from PySide6.QtGui import QPainter, QColor, QPen, QLinearGradient, QBrush
 
 
 class WaveformWidget(QWidget):

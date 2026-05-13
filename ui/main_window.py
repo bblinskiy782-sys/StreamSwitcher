@@ -3,27 +3,39 @@ Main Window - StreamSwitcher Pro
 Dark Mode Professional Broadcasting Station UI
 """
 import time
-from PySide6.QtWidgets import (
-    QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
-    QGroupBox, QLabel, QPushButton, QSlider, QComboBox,
-    QTabWidget, QSplitter, QListWidget, QListWidgetItem,
-    QFileDialog, QStatusBar, QFrame, QSpinBox, QLineEdit,
-    QMessageBox, QSizePolicy, QCheckBox
-)
-from PySide6.QtCore import Qt, QTimer, Signal, QThread
-from PySide6.QtGui import QFont, QColor, QIcon
 
-from ui.styles import DARK_STYLESHEET
-from ui.vu_meter import VUMeter
-from ui.waveform_widget import WaveformWidget
+from PySide6.QtCore import Qt, QTimer
+from PySide6.QtWidgets import (
+    QCheckBox,
+    QComboBox,
+    QFileDialog,
+    QFrame,
+    QGroupBox,
+    QHBoxLayout,
+    QLabel,
+    QLineEdit,
+    QListWidget,
+    QListWidgetItem,
+    QMainWindow,
+    QPushButton,
+    QSlider,
+    QSplitter,
+    QTabWidget,
+    QVBoxLayout,
+    QWidget,
+)
+
+from core.audio_engine import AudioEngine, AudioSource, MixMode
+from core.remote_api import RemoteAPI
+from core.scheduler import Scheduler
+from core.source_manager import SourceManager
+from core.streamer import IcecastStreamer
 from ui.dsp_panel import DSPPanel
 from ui.scheduler_panel import SchedulerPanel
 from ui.stream_panel import StreamPanel
-from core.audio_engine import AudioEngine, AudioSource, MixMode
-from core.source_manager import SourceManager
-from core.scheduler import Scheduler
-from core.streamer import IcecastStreamer
-from core.remote_api import RemoteAPI
+from ui.styles import DARK_STYLESHEET
+from ui.vu_meter import VUMeter
+from ui.waveform_widget import WaveformWidget
 
 
 class MainWindow(QMainWindow):
