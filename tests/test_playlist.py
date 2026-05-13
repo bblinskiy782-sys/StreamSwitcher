@@ -148,3 +148,39 @@ def test_enrich_track_missing_file_is_noop(tmp_path):
     t = pl.Track(path=str(tmp_path / "nope.mp3"), title="kept")
     pl.enrich_track(t)
     assert t.title == "kept"
+
+
+# ---------------------------------------------------------------------------
+# File-system round trip (mirrors the UI Import/Export flow)
+# ---------------------------------------------------------------------------
+
+
+def test_m3u_file_round_trip(tmp_path):
+    """Regression: UI used to pass a path into parse_m3u (a content parser),
+    which silently produced a single 'track' whose path was the .m3u file
+    itself. Treating M3U as a file requires read-then-parse, write-then-save.
+    """
+    original = [
+        pl.Track(path="/music/a.mp3", artist="A", title="One", duration=120),
+        pl.Track(path="/music/b.mp3", artist="B", title="Two", duration=180),
+    ]
+    path = tmp_path / "list.m3u"
+    path.write_text(pl.write_m3u(original), encoding="utf-8")
+
+    parsed = pl.parse_m3u(path.read_text(encoding="utf-8"))
+    assert [t.path for t in parsed] == ["/music/a.mp3", "/music/b.mp3"]
+    assert parsed[0].artist == "A"
+    assert parsed[1].title == "Two"
+
+
+def test_pls_file_round_trip(tmp_path):
+    original = [
+        pl.Track(path="/music/a.mp3", title="One", duration=120),
+        pl.Track(path="/music/b.mp3", title="Two", duration=180),
+    ]
+    path = tmp_path / "list.pls"
+    path.write_text(pl.write_pls(original), encoding="utf-8")
+
+    parsed = pl.parse_pls(path.read_text(encoding="utf-8"))
+    assert [t.path for t in parsed] == ["/music/a.mp3", "/music/b.mp3"]
+    assert parsed[0].duration == 120.0

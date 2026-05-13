@@ -1127,8 +1127,10 @@ class MainWindow(QMainWindow):
         if not path:
             return
         try:
+            with open(path, encoding="utf-8", errors="replace") as fh:
+                content = fh.read()
             ext = os.path.splitext(path)[1].lower()
-            tracks = parse_pls(path) if ext == ".pls" else parse_m3u(path)
+            tracks = parse_pls(content) if ext == ".pls" else parse_m3u(content)
         except Exception as exc:
             self._show_error(f"Failed to import playlist: {exc}")
             return
@@ -1148,9 +1150,11 @@ class MainWindow(QMainWindow):
         try:
             tracks = [enrich_track(Track(path=p)) for p in self.source_mgr._playlist]
             if path.lower().endswith(".pls") or "PLS" in selected:
-                write_pls(path, tracks)
+                payload = write_pls(tracks)
             else:
-                write_m3u(path, tracks)
+                payload = write_m3u(tracks)
+            with open(path, "w", encoding="utf-8") as fh:
+                fh.write(payload)
         except Exception as exc:
             self._show_error(f"Failed to export playlist: {exc}")
             return
