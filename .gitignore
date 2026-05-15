@@ -1,0 +1,59 @@
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# Distribution / packaging
+build/
+dist/
+*.egg-info/
+.eggs/
+
+# Virtual envs
+.venv/
+venv/
+env/
+
+# Test / coverage
+.pytest_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# IDEs
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# User data
+*.log
+config.json
+~/.streamswitcher/
+
+# PyInstaller
+*.spec.bak
+*.manifest
+
+# Build output
+Output/
+dist/
+
+# One-off utility scripts
+make_icon.py
+
+# Build venv
+build_venv/
+
+# Build artifacts
+build/
+dist/
+Output/
+
+# Docs
+docs/
+
+# Landing page
+landing/
