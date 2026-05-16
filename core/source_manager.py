@@ -317,29 +317,40 @@ class SourceManager(QObject):
         return data, sr
 
     def _resample(self, audio: np.ndarray, orig_sr: int, target_sr: int) -> np.ndarray:
-        """Simple linear resampling."""
+        """Resample audio using polyphase filtering for better performance."""
         try:
             import scipy.signal as sig
-            ratio = target_sr / orig_sr
-            new_len = int(len(audio) * ratio)
-            if audio.ndim == 1:
-                return sig.resample(audio, new_len)
-            result = np.zeros((new_len, audio.shape[1]), dtype=np.float32)
-            for ch in range(audio.shape[1]):
-                result[:, ch] = sig.resample(audio[:, ch], new_len)
-            return result
+            import math
+            gcd = math.gcd(target_sr, orig_sr)
+            up = target_sr // gcd
+            down = orig_sr // gcd
+
+            # resample_poly handles 1D and 2D arrays automatically
+            resampled = sig.resample_poly(audio, up, down, axis=0)
+            return resampled.astype(np.float32)
         except Exception:
             return audio
 
     def _generate_waveform(self, audio: np.ndarray, points: int = 1000):
-        """Generate downsampled waveform for visualization."""
+        """Generate downsampled waveform for visualization using vectorized numpy."""
         try:
             mono = audio[:, 0] if audio.ndim > 1 else audio
             step = max(1, len(mono) // points)
-            waveform = np.array([
-                float(np.max(np.abs(mono[i:i + step])))
-                for i in range(0, len(mono), step)
-            ])
+
+            # Vectorized maximum computation
+            end_idx = (len(mono) // step) * step
+            if end_idx == 0:
+                self.waveform_ready.emit(np.array([float(np.max(np.abs(mono)))]))
+                return
+
+            reshaped = np.abs(mono[:end_idx]).reshape(-1, step)
+            waveform = np.max(reshaped, axis=1).astype(float)
+
+            # Handle remaining samples
+            if end_idx < len(mono):
+                remainder_max = float(np.max(np.abs(mono[end_idx:])))
+                waveform = np.append(waveform, remainder_max)
+
             self.waveform_ready.emit(waveform)
         except Exception:
             pass

@@ -360,31 +360,40 @@ class AudioEngine(QObject):
     def _resize_block(self, data: np.ndarray, frames: int) -> np.ndarray:
         if data.shape[0] > frames:
             return data[:frames]
-        pad = np.zeros((frames - data.shape[0], self.channels), dtype=self.dtype)
-        return np.vstack([data, pad])
+        # Use np.pad instead of vstack with zeros for better performance
+        pad_width = ((0, frames - data.shape[0]), (0, 0))
+        return np.pad(data, pad_width, mode="constant")
 
     # ------------------------------------------------------------------ #
     #  DSP                                                                 #
     # ------------------------------------------------------------------ #
 
     def _apply_eq(self, audio: np.ndarray) -> np.ndarray:
-        """Simple peak EQ using biquad filters (approximated)."""
+        """Peak EQ using precise biquad formula."""
         try:
-            from scipy.signal import sosfilt, iirpeak
+            from scipy.signal import lfilter
             result = audio.copy()
             for freq, gain_db in self.eq_bands.items():
                 if abs(gain_db) < 0.1:
                     continue
                 Q = 1.0
-                w0 = freq / (self.sample_rate / 2)
-                if w0 >= 1.0:
+                A = 10 ** (gain_db / 40.0)
+                w0 = 2 * np.pi * freq / self.sample_rate
+                if w0 >= np.pi:
                     continue
-                sos = iirpeak(w0, Q, fs=2.0)
-                # Apply gain
-                gain_linear = 10 ** (gain_db / 20.0)
-                for ch in range(result.shape[1]):
-                    filtered = sosfilt(sos, result[:, ch])
-                    result[:, ch] = result[:, ch] + (filtered - result[:, ch]) * (gain_linear - 1)
+                alpha = np.sin(w0) / (2 * Q)
+
+                b0 = 1 + alpha * A
+                b1 = -2 * np.cos(w0)
+                b2 = 1 - alpha * A
+                a0 = 1 + alpha / A
+                a1 = -2 * np.cos(w0)
+                a2 = 1 - alpha / A
+
+                b = np.array([b0, b1, b2]) / a0
+                a = np.array([1.0, a1/a0, a2/a0])
+
+                result = lfilter(b, a, result, axis=0)
             return result
         except Exception:
             return audio
@@ -396,6 +405,8 @@ class AudioEngine(QObject):
         ratio = self.compressor_ratio
 
         result = audio.copy()
+        # Calculate RMS for each sample frame instead of the entire block for more accurate comp
+        # using moving average or block average. Here we use fast block average.
         rms = np.sqrt(np.mean(result ** 2))
         if rms > threshold_linear:
             over = rms / threshold_linear
